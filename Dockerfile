@@ -1,30 +1,25 @@
-# ✅ BUILD STAGE
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# 🔹 Copy csproj first (for caching)
-COPY Backend/API/Api.csproj Backend/API/
-WORKDIR /src/Backend/API
+COPY global.json ./
+COPY Backend.csproj ./
+RUN dotnet restore ./Backend.csproj
 
-RUN dotnet restore
+COPY . ./
+RUN dotnet publish ./Backend.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish
 
-# 🔹 Copy full project
-WORKDIR /src
-COPY . .
-
-# 🔹 Publish
-WORKDIR /src/Backend/API
-RUN dotnet publish -c Release -o /app/out
-
-# ✅ RUNTIME STAGE
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-COPY --from=build /app/out .
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DOTNET_RUNNING_IN_CONTAINER=true
+ENV PORT=8080
 
-# 🔹 Bind to Render port
-ENV ASPNETCORE_URLS=http://+:5000
-EXPOSE 5000
+COPY --from=build /app/publish ./
 
-# 🔥 IMPORTANT: Use correct DLL name
-ENTRYPOINT ["dotnet", "Api.dll"]
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "Backend.dll"]
